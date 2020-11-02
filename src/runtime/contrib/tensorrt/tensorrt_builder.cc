@@ -117,7 +117,7 @@ TensorRTBuilder::TensorRTBuilder(runtime::TensorRTLogger* logger,
 #if TRT_VERSION_GE(6, 0, 1)
   // Use INetworkV2.
   auto flags = 1U << static_cast<uint32_t>(
-      nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH);;
+      nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH);
   if (use_implicit_batch_) {
     flags = 0U;
     batch_size_ = args[0]->shape[0];
@@ -212,32 +212,32 @@ runtime::TrtEngineAndContext TensorRTBuilder::BuildEngine(
   device_buffers.resize(engine->getNbBindings());
 
   for (size_t i = 0; i < network_input_names_.size(); i++) {
-    int binding_index = engine->getBindingIndex(network_input_names_[i].c_str());
-    if (network_input_is_baked_[i]) continue;
-    if (execution_args_[i]->ctx.device_type == kDLGPU) {
+    if (network_input_is_baked_[i] || execution_args_[i]->ctx.device_type == kDLGPU) {
       continue;
     } else {
+      int binding_index = engine->getBindingIndex(network_input_names_[i].c_str());
       std::vector<int64_t> shape(execution_args_[i]->shape,
                                  execution_args_[i]->shape + execution_args_[i]->ndim);
       device_buffers[binding_index] =
-          runtime::NDArray::Empty(shape, execution_args_[i]->dtype, {kDLGPU, 0});
+      runtime::NDArray::Empty(shape, execution_args_[i]->dtype, {kDLGPU, 0});
     }
   }
+
   for (size_t i = 0; i < network_output_names_.size(); i++) {
     int index_in_args = execution_args_.size() - network_output_names_.size() + i;
-    int binding_index = engine->getBindingIndex(network_output_names_[i].c_str());
-
     if (execution_args_[index_in_args]->ctx.device_type == kDLGPU) {
       continue;
     } else {
+      int binding_index = engine->getBindingIndex(network_output_names_[i].c_str());
       std::vector<int64_t> shape(
           execution_args_[index_in_args]->shape,
           execution_args_[index_in_args]->shape + execution_args_[index_in_args]->ndim);
       device_buffers[binding_index] =
-          runtime::NDArray::Empty(shape, execution_args_[index_in_args]->dtype, {kDLGPU, 0});
+      runtime::NDArray::Empty(shape, execution_args_[index_in_args]->dtype, {kDLGPU, 0});
     }
+  }
   return {
-      engine,        context, network_input_names_, network_input_is_baked_, network_output_names_,
+      engine, context, network_input_names_, network_input_is_baked_, network_output_names_,
       device_buffers};
 }
 
