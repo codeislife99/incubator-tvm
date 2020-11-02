@@ -208,30 +208,33 @@ runtime::TrtEngineAndContext TensorRTBuilder::BuildEngine(
   CHECK_EQ(engine->getNbBindings(),
            num_input_bindings + network_output_names_.size());
   nvinfer1::IExecutionContext* context = engine->createExecutionContext();
-  std::vector<runtime::NDArray> device_buffers;
-  for (int i = 0; i < network_input_names_.size(); i++) {
+  std::vector<runtime::NDArray> device_buffers; 
+  device_buffers.resize(engine->getNbBindings());
+
+  for (size_t i = 0; i < network_input_names_.size(); i++) {
+    int binding_index = engine->getBindingIndex(network_input_names_[i].c_str());
     if (network_input_is_baked_[i]) continue;
     if (execution_args_[i]->ctx.device_type == kDLGPU) {
-      device_buffers.emplace_back();
+      continue; 
     } else {
       std::vector<int64_t> shape(execution_args_[i]->shape,
                                  execution_args_[i]->shape + execution_args_[i]->ndim);
-      device_buffers.push_back(
-          runtime::NDArray::Empty(shape, execution_args_[i]->dtype, {kDLGPU, 0}));
+      device_buffers[binding_index] = runtime::NDArray::Empty(shape, execution_args_[i]->dtype, {kDLGPU, 0});
     }
   }
-  for (int i = 0; i < network_output_names_.size(); i++) {
+  
+  for (size_t i = 0; i < network_output_names_.size(); i++) {
     int index_in_args = execution_args_.size() - network_output_names_.size() + i;
+    int binding_index = engine->getBindingIndex(network_output_names_[i].c_str());
+
     if (execution_args_[index_in_args]->ctx.device_type == kDLGPU) {
-      device_buffers.emplace_back();
+      continue;
     } else {
       std::vector<int64_t> shape(
           execution_args_[index_in_args]->shape,
           execution_args_[index_in_args]->shape + execution_args_[index_in_args]->ndim);
-      device_buffers.push_back(
-          runtime::NDArray::Empty(shape, execution_args_[index_in_args]->dtype, {kDLGPU, 0}));
+      device_buffers[binding_index] = runtime::NDArray::Empty(shape, execution_args_[index_in_args]->dtype, {kDLGPU, 0});
     }
-  }
   return {
       engine,        context, network_input_names_, network_input_is_baked_, network_output_names_,
       device_buffers};
