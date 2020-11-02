@@ -219,11 +219,10 @@ runtime::TrtEngineAndContext TensorRTBuilder::BuildEngine(
     } else {
       std::vector<int64_t> shape(execution_args_[i]->shape,
                                  execution_args_[i]->shape + execution_args_[i]->ndim);
-      device_buffers[binding_index] = 
+      device_buffers[binding_index] =
           runtime::NDArray::Empty(shape, execution_args_[i]->dtype, {kDLGPU, 0});
     }
   }
-  
   for (size_t i = 0; i < network_output_names_.size(); i++) {
     int index_in_args = execution_args_.size() - network_output_names_.size() + i;
     int binding_index = engine->getBindingIndex(network_output_names_[i].c_str());
@@ -234,7 +233,7 @@ runtime::TrtEngineAndContext TensorRTBuilder::BuildEngine(
       std::vector<int64_t> shape(
           execution_args_[index_in_args]->shape,
           execution_args_[index_in_args]->shape + execution_args_[index_in_args]->ndim);
-      device_buffers[binding_index] = 
+      device_buffers[binding_index] =
           runtime::NDArray::Empty(shape, execution_args_[index_in_args]->dtype, {kDLGPU, 0});
     }
   return {
@@ -537,6 +536,6 @@ void TransposeWeights2D(const std::vector<int>& original_shape,
     }
   }
 }
-}// namespace contrib
-}// namespace relay
-}// namespace tvm
+}  // namespace contrib
+}  // namespace relay
+}  // namespace tvm
