@@ -149,11 +149,9 @@ def _register_external_op_helper(op_name, supported=True):
         if any([x.checked_type.dtype != "float32" for x in args]):
             print("Only float32 inputs are supported for TensorRT.")
             return False
-        """
-        TODO (codeislife99): Here we are excluding multiply calculations which get "batched" in implicit batch mode.
-        This leads to wrong or invalid multiply calculations. Since the Neo-service uses implicit batch mode as True
-        this is a temporary workaround. A more generalizable workaround is in the works for a future update. 
-        """
+        # TODO (codeislife99): Here we are excluding multiply calculations which get "batched" in implicit batch mode.
+        # This leads to wrong or invalid multiply calculations. Since the Neo-service uses implicit batch mode as True
+        # this is a temporary workaround. A more generalizable workaround is in the works for a future update. 
         if op_name == "multiply":
             if all(
                 [
