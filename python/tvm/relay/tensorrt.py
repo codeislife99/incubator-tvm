@@ -220,9 +220,13 @@ def register_tensorrt_annotations(trt_version, use_implicit_batch=True):
     # _register_external_op_helper("slice_like")
 
     def add_whitelist_fn(attrs, args):  # pylint: disable=unused-variable
+        static_add = True
         for arg in args:
             if not arg.checked_type.shape[1:]:
                 return False
+            if isinstance(arg.checked_type.shape, tvm.tir.expr.Any):
+                static_add = False
+
         if any([x.checked_type.dtype != "float32" for x in args]):
             print("Only float32 inputs are supported for TensorRT.")
             return False
@@ -237,7 +241,9 @@ def register_tensorrt_annotations(trt_version, use_implicit_batch=True):
             return False
 
         # Skip this add op in TRT to avoid accuracy mismatch
-        if all([list(map(int, arg.checked_type.shape)) == [1, 546, 1, 1] for arg in args]):
+        if static_add and all(
+            [list(map(int, arg.checked_type.shape)) == [1, 546, 1, 1] for arg in args]
+        ):
             print("add: bug in TRT with add of shape (1, 546, 1, 1).")
             return False
 
