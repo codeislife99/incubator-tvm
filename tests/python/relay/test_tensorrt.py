@@ -970,3 +970,7 @@ if __name__ == "__main__":
     test_tensorrt_not_compatible()
     test_tensorrt_integration()
     test_tensorrt_serialize()
+    test_tensorrt_dynamic_batch()
+    test_tensorrt_dynamic_batch_conv()
+    test_tensorrt_dynamic_batch_conv_transpose()
+    test_tensorrt_dynamic_dense()
