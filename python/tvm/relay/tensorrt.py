@@ -462,7 +462,8 @@ def register_tensorrt_annotations(trt_version, use_implicit_batch=True):
                 if int(new_shape[0]) < 0:
                     for shape_val, new_shape_val in enumerate(shape[1:], new_shape[1:]):
                         if not (
-                            type(shape_val) == type(new_shape_val)
+                            isinstance(shape_val, int)
+                            and isinstance(new_shape_val, int)
                             and int(shape_val) == int(new_shape_val)
                         ):
                             return False
