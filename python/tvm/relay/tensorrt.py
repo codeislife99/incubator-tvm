@@ -221,7 +221,7 @@ def register_tensorrt_annotations(trt_version, use_implicit_batch=True):
 
     def add_whitelist_fn(attrs, args):  # pylint: disable=unused-variable
         for arg in args:
-            if not arg.checked_type.shape:
+            if not arg.checked_type.shape[1:]:
                 return False
         if any([x.checked_type.dtype != "float32" for x in args]):
             print("Only float32 inputs are supported for TensorRT.")
@@ -229,7 +229,7 @@ def register_tensorrt_annotations(trt_version, use_implicit_batch=True):
 
         if (
             (isinstance(args[0], Constant) or isinstance(args[1], Constant))
-            and args[0].checked_type.shape[0] == args[0].checked_type.shape[0]
+            and args[0].checked_type.shape[0] == args[1].checked_type.shape[0]
             and args[0].checked_type.shape[0] != 1
             and (len(args[0].checked_type.shape) > 3 or len(args[1].checked_type.shape) > 3)
         ):
@@ -792,7 +792,8 @@ def PruneSubgraphs(mod, compiler="tensorrt", use_implicit_batch=True, prune_no_m
                 # Scalar inputs not allowed
                 if len(var.checked_type.shape) == 0:
                     return False
-                input_batch_sizes.append(int(var.checked_type.shape[0]))
+                if not isinstance(var.checked_type.shape[0], tvm.tir.expr.Any):
+                    input_batch_sizes.append(int(var.checked_type.shape[0]))
         if len(input_batch_sizes) > 1 and any(
             [x != input_batch_sizes[0] for x in input_batch_sizes[1:]]
         ):
