@@ -856,7 +856,6 @@ def test_tensorrt_dynamic_batch():
     batches_to_test = [1, 1, 2, 3, 1, 3, 2]
     x_shape = (relay.Any(), 1, 8, 8)
     x_data = np.ones([max(batches_to_test)] + list(x_shape)[1:]).astype("float32")
-    # print(x_data.shape)
     result_dict = {}
     for use_trt in [True, False]:
         x = relay.var("x", shape=x_shape, dtype="float32")
