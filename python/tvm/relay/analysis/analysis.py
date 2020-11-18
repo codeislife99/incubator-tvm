@@ -319,6 +319,24 @@ def get_total_mac_number(expr):
     return _ffi_api.GetTotalMacNumber(expr)
 
 
+def is_compute_heavy_graph(expr):
+    """
+    Check if the graph is compute heavy. A compute heavy graph is currently defined
+    as one which contains convolutions & their transpose, dense and batch matmul ops
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression.
+
+    Returns
+    -------
+    result : bool
+      The number of MACs (multiply-accumulate) of a model
+    """
+    return _ffi_api.IsComputeHeavyGraph(expr)
+
+
 def unmatched_cases(match, mod=None):
     """
     Finds cases that the match expression does not catch, if any.
