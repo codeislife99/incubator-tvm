@@ -749,6 +749,37 @@ class SubgraphRemover(ExprMutator):
         return super().visit_call(call)
 
 
+class ComputeHeavyGraph(ExprMutator):
+    """
+    Reverts subgraphs in subgraphs_to_remove back to TVM instead of using an external codegen.
+    """
+
+    def __init__(self):
+        ExprMutator.__init__(self)
+        self.is_compute_heavy = False
+
+    def visit_call(self, call):
+        heavy_ops = set(
+            [
+                "nn.conv2d",
+                "nn.conv2d_transpose",
+                "nn.conv3d",
+                "nn.conv3d_transpose",
+                "nn.dense",
+                "nn.batch_matmul",
+            ]
+        )
+        if isinstance(call.op, tvm.tir.op.Op):
+            if str(call.op) in heavy_ops:
+                self.is_compute_heavy = True
+
+        return super().visit_call(call)
+
+    def is_graph_compute_heavy(self, subgraph):
+        self.visit(subgraph)
+        return self.is_compute_heavy
+
+
 def PruneSubgraphs(mod, compiler="tensorrt", use_implicit_batch=True, prune_no_macs=False):
     """
     If use_implicit_batch is True, removes subgraphs which were originally partitioned for TRT
@@ -826,7 +857,7 @@ def PruneSubgraphs(mod, compiler="tensorrt", use_implicit_batch=True, prune_no_m
 
     # Remove subgraphs with no multiply-accumulates
     if prune_no_macs:
-        subgraph_with_macs = []
+        subgraph_with_compute_heavy_filter = []
         for subgraph in mod.get_global_vars():
             name = subgraph.name_hint
             if (
@@ -837,10 +868,16 @@ def PruneSubgraphs(mod, compiler="tensorrt", use_implicit_batch=True, prune_no_m
                 continue
             if not mod[name].attrs or mod[name].attrs["Compiler"] != compiler:
                 continue
-            num_macs = relay.analysis.get_total_mac_number(mod[name])
-            subgraph_with_macs.append([name, num_macs])
-        print("Subgraphs with computed # of MACS:", subgraph_with_macs)
-        subgraphs_to_remove.extend([name for name, num_macs in subgraph_with_macs if num_macs == 0])
+            is_compute_heavy = ComputeHeavyGraph().is_graph_compute_heavy(mod[name])
+            subgraph_with_compute_heavy_filter.append([name, is_compute_heavy])
+        print("Subgraphs with compute heavy filter", subgraph_with_compute_heavy_filter)
+        subgraphs_to_remove.extend(
+            [
+                name
+                for name, is_compute_heavy in subgraph_with_compute_heavy_filter
+                if not is_compute_heavy
+            ]
+        )
     if len(subgraphs_to_remove) == 0:
         return mod
     print("Will remove these subgraphs:", subgraphs_to_remove)
