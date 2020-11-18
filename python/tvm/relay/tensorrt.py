@@ -751,7 +751,8 @@ class SubgraphRemover(ExprMutator):
 
 class ComputeHeavyGraph(ExprMutator):
     """
-    Reverts subgraphs in subgraphs_to_remove back to TVM instead of using an external codegen.
+    Visits the Graph recursively and checks if it contains compute heavy ops like convolutions and
+    its transpose, dense and batch mat-mul.
     """
 
     def __init__(self):
