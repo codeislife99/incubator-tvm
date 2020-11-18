@@ -220,12 +220,14 @@ def register_tensorrt_annotations(trt_version, use_implicit_batch=True):
     # _register_external_op_helper("slice_like")
 
     def add_whitelist_fn(attrs, args):  # pylint: disable=unused-variable
-        static_add = True
-        for arg in args:
-            if not arg.checked_type.shape[1:]:
+        shapes = [
+            [int(x) if not isinstance(x, tvm.tir.expr.Any) else -1 for x in args.checked_type.shape]
+            for arg in args
+        ]
+
+        for shape in shapes:
+            if len(shape) < 1:
                 return False
-            if isinstance(arg.checked_type.shape, tvm.tir.expr.Any):
-                static_add = False
 
         if any([x.checked_type.dtype != "float32" for x in args]):
             print("Only float32 inputs are supported for TensorRT.")
@@ -233,17 +235,15 @@ def register_tensorrt_annotations(trt_version, use_implicit_batch=True):
 
         if (
             (isinstance(args[0], Constant) or isinstance(args[1], Constant))
-            and args[0].checked_type.shape[0] == args[1].checked_type.shape[0]
-            and args[0].checked_type.shape[0] != 1
-            and (len(args[0].checked_type.shape) > 3 or len(args[1].checked_type.shape) > 3)
+            and shapes[0][0] == shapes[1][0]
+            and shapes[0][0] != 1
+            and (len(shapes[0]) > 3 or len(shapes[1]) > 3)
         ):
             print("add: bug in TRT with adding batched constants.")
             return False
 
         # Skip this add op in TRT to avoid accuracy mismatch
-        if static_add and all(
-            [list(map(int, arg.checked_type.shape)) == [1, 546, 1, 1] for arg in args]
-        ):
+        if all([list(map(int, shape)) == [1, 546, 1, 1] for shape in shapes]):
             print("add: bug in TRT with add of shape (1, 546, 1, 1).")
             return False
 
@@ -451,11 +451,7 @@ def register_tensorrt_annotations(trt_version, use_implicit_batch=True):
                 print("reshape: Can't reshape to or from scalar.")
                 return False
 
-            dynamic_reshape = False
-            for value in shape:
-                if isinstance(value, tvm.tir.expr.Any):
-                    dynamic_reshape = True
-                    break
+            dynamic_reshape = any([isinstance(x, tvm.tir.expr.Any) for x in shape])
 
             if dynamic_reshape:
                 # Make sure that the batch dim is unmodified.
