@@ -463,6 +463,13 @@ def register_tensorrt_annotations(trt_version, use_implicit_batch=True):
                             and int(shape_val) == int(new_shape_val)
                         ):
                             return False
+                elif int(new_shape[0]) > 0:
+                    if not (
+                        isinstance(shape[0], int)
+                        and isinstance(new_shape[0], int)
+                        and int(shape[0]) == int(new_shape[0])
+                    ):
+                        return False
                 return True
             else:
                 shape = list(map(int, shape))
