@@ -823,7 +823,7 @@ def PruneSubgraphs(mod, compiler="tensorrt", use_implicit_batch=True, prune_no_m
 
     # Remove subgraphs with no multiply-accumulates
     if prune_no_macs:
-        subgraph_with_macs = []
+        subgraph_with_compute_heavy_filter = []
         for subgraph in mod.get_global_vars():
             name = subgraph.name_hint
             if (
@@ -834,10 +834,16 @@ def PruneSubgraphs(mod, compiler="tensorrt", use_implicit_batch=True, prune_no_m
                 continue
             if not mod[name].attrs or mod[name].attrs["Compiler"] != compiler:
                 continue
-            num_macs = relay.analysis.get_total_mac_number(mod[name])
-            subgraph_with_macs.append([name, num_macs])
-        print("Subgraphs with computed # of MACS:", subgraph_with_macs)
-        subgraphs_to_remove.extend([name for name, num_macs in subgraph_with_macs if num_macs == 0])
+            is_compute_heavy = relay.analysis.is_compute_heavy_graph(mod[name])
+            subgraph_with_compute_heavy_filter.append([name, is_compute_heavy])
+        print("Subgraphs with compute heavy filter", subgraph_with_compute_heavy_filter)
+        subgraphs_to_remove.extend(
+            [
+                name
+                for name, is_compute_heavy in subgraph_with_compute_heavy_filter
+                if is_compute_heavy == False
+            ]
+        )
     if len(subgraphs_to_remove) == 0:
         return mod
     print("Will remove these subgraphs:", subgraphs_to_remove)
