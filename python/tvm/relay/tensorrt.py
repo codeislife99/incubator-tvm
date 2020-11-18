@@ -27,7 +27,7 @@ from tvm import relay
 from tvm.relay.expr import Call, Constant, Tuple, GlobalVar, Var, TupleGetItem
 from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.transform import _ffi_api
-from tvm.relay.expr_functor import ExprMutator
+from tvm.relay.expr_functor import ExprMutator, ExprVisitor
 
 
 class LegalizeLayoutTranform(ExprMutator):
@@ -749,15 +749,15 @@ class SubgraphRemover(ExprMutator):
         return super().visit_call(call)
 
 
-class ComputeHeavyGraph(ExprMutator):
+class IsComputeIntensiveGraph(ExprVisitor):
     """
     Visits the Graph recursively and checks if it contains compute heavy ops like convolutions and
     its transpose, dense and batch mat-mul.
     """
 
     def __init__(self):
-        ExprMutator.__init__(self)
-        self.is_compute_heavy = False
+        ExprVisitor.__init__(self)
+        self.is_compute_intensive = False
 
     def visit_call(self, call):
         heavy_ops = set(
@@ -772,18 +772,16 @@ class ComputeHeavyGraph(ExprMutator):
         )
         if isinstance(call.op, tvm.tir.op.Op):
             if str(call.op) in heavy_ops:
-                self.is_compute_heavy = True
+                self.is_compute_intensive = True
 
         return super().visit_call(call)
 
-    def is_graph_compute_heavy(self, subgraph):
+    def is_graph_compute_intensive(self, subgraph):
         self.visit(subgraph)
-        return self.is_compute_heavy
+        return self.is_compute_intensive
 
 
-def PruneSubgraphs(
-    mod, compiler="tensorrt", use_implicit_batch=True, prune_compute_heavy_subgraphs=False
-):
+def PruneSubgraphs(mod, compiler="tensorrt", use_implicit_batch=True, prune_no_macs=False):
     """
     If use_implicit_batch is True, removes subgraphs which were originally partitioned for TRT
     that are incompatible with implicit batch mode.
@@ -803,7 +801,7 @@ def PruneSubgraphs(
         Which mode we plan to use for TensorRT. Will be used to determine which subgraphs are
         valid. In implicit batch mode, all inputs to a subgraph must have the same batch size.
 
-    prune_compute_heavy_subgraphs : bool
+    prune_no_macs : bool
         Whether to also remove subgraphs which have no multiple-accumulate operations.
 
     Returns
@@ -859,8 +857,8 @@ def PruneSubgraphs(
             subgraphs_to_remove.append(name)
 
     # Remove subgraphs with no multiply-accumulates
-    if prune_compute_heavy_subgraphs:
-        subgraph_with_compute_heavy_filter = []
+    if prune_no_macs:
+        subgraph_with_compute_intensive_filter = []
         for subgraph in mod.get_global_vars():
             name = subgraph.name_hint
             if (
@@ -871,14 +869,14 @@ def PruneSubgraphs(
                 continue
             if not mod[name].attrs or mod[name].attrs["Compiler"] != compiler:
                 continue
-            is_compute_heavy = ComputeHeavyGraph().is_graph_compute_heavy(mod[name])
-            subgraph_with_compute_heavy_filter.append([name, is_compute_heavy])
-        print("Subgraphs with compute heavy filter", subgraph_with_compute_heavy_filter)
+            is_compute_intensive = IsComputeIntensiveGraph().is_graph_compute_intensive(mod[name])
+            subgraph_with_compute_intensive_filter.append([name, is_compute_intensive])
+        print("Subgraphs with compute heavy filter", subgraph_with_compute_intensive_filter)
         subgraphs_to_remove.extend(
             [
                 name
-                for name, is_compute_heavy in subgraph_with_compute_heavy_filter
-                if not is_compute_heavy
+                for name, is_compute_intensive in subgraph_with_compute_intensive_filter
+                if not is_compute_intensive
             ]
         )
     if len(subgraphs_to_remove) == 0:
@@ -1000,9 +998,7 @@ def EnableTrt(
     )
     with tvm.transform.PassContext(opt_level=3):
         mod = seq(mod)
-    mod = PruneSubgraphs(
-        mod, use_implicit_batch=use_implicit_batch, prune_compute_heavy_subgraphs=prune_subgraphs
-    )
+    mod = PruneSubgraphs(mod, use_implicit_batch=use_implicit_batch, prune_no_macs=prune_subgraphs)
 
     # Set SkipOptimization back to 0
     mod = _set_optimization_attr(mod, skip_optimization=0)
