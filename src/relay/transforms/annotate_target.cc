@@ -115,6 +115,7 @@ class AnnotateTargetRewriter : public ExprRewriter {
      *
      *  This function checks for expr existence within the map and inserts the annotation
      *  Further, it propagates the target to the new expression and returns it
+     *
      * \param expr A relay expression
      * \return An annotated and target-propagated relay expression.
      */
