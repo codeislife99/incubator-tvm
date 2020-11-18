@@ -780,7 +780,9 @@ class ComputeHeavyGraph(ExprMutator):
         return self.is_compute_heavy
 
 
-def PruneSubgraphs(mod, compiler="tensorrt", use_implicit_batch=True, prune_no_macs=False):
+def PruneSubgraphs(
+    mod, compiler="tensorrt", use_implicit_batch=True, prune_compute_heavy_subgraphs=False
+):
     """
     If use_implicit_batch is True, removes subgraphs which were originally partitioned for TRT
     that are incompatible with implicit batch mode.
@@ -800,7 +802,7 @@ def PruneSubgraphs(mod, compiler="tensorrt", use_implicit_batch=True, prune_no_m
         Which mode we plan to use for TensorRT. Will be used to determine which subgraphs are
         valid. In implicit batch mode, all inputs to a subgraph must have the same batch size.
 
-    prune_no_macs : bool
+    prune_compute_heavy_subgraphs : bool
         Whether to also remove subgraphs which have no multiple-accumulate operations.
 
     Returns
@@ -856,7 +858,7 @@ def PruneSubgraphs(mod, compiler="tensorrt", use_implicit_batch=True, prune_no_m
             subgraphs_to_remove.append(name)
 
     # Remove subgraphs with no multiply-accumulates
-    if prune_no_macs:
+    if prune_compute_heavy_subgraphs:
         subgraph_with_compute_heavy_filter = []
         for subgraph in mod.get_global_vars():
             name = subgraph.name_hint
@@ -997,7 +999,9 @@ def EnableTrt(
     )
     with tvm.transform.PassContext(opt_level=3):
         mod = seq(mod)
-    mod = PruneSubgraphs(mod, use_implicit_batch=use_implicit_batch, prune_no_macs=prune_subgraphs)
+    mod = PruneSubgraphs(
+        mod, use_implicit_batch=use_implicit_batch, prune_compute_heavy_subgraphs=prune_subgraphs
+    )
 
     # Set SkipOptimization back to 0
     mod = _set_optimization_attr(mod, skip_optimization=0)
