@@ -841,7 +841,7 @@ def PruneSubgraphs(mod, compiler="tensorrt", use_implicit_batch=True, prune_no_m
             [
                 name
                 for name, is_compute_heavy in subgraph_with_compute_heavy_filter
-                if is_compute_heavy == False
+                if not is_compute_heavy
             ]
         )
     if len(subgraphs_to_remove) == 0:
