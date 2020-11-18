@@ -451,11 +451,7 @@ def register_tensorrt_annotations(trt_version, use_implicit_batch=True):
                 print("reshape: Can't reshape to or from scalar.")
                 return False
 
-            dynamic_reshape = False
-            for value in shape:
-                if isinstance(value, tvm.tir.expr.Any):
-                    dynamic_reshape = True
-                    break
+            dynamic_reshape = any([isinstance(x, tvm.tir.expr.Any) for x in shape])
 
             if dynamic_reshape:
                 # Make sure that the batch dim is unmodified.
