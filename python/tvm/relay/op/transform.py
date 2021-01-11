@@ -1320,3 +1320,48 @@ def adv_index(inputs):
         Output tensor.
     """
     return _make.adv_index(Tuple(inputs))
+
+
+def sparse_reshape(sparse_indices, prev_shape, new_shape):
+    """
+    Reshape a Sparse Tensor
+
+    Parameters
+    ----------
+    sparse_indices : relay.Expr
+        A 2-D tensor[N, n_dim] of integers containing location of sparse values, where N is the
+        number of sparse values and n_dim is the number of dimensions of the dense_shape
+    prev_shape : relay.Expr
+        A 1-D tensor containing the previous shape of the dense tensor
+    new_shape : relay.Expr
+        A 1-D tensor containing the new shape of the dense tensor
+
+    Returns
+    -------
+    result: relay.Expr
+        Output tensor.
+    Examples
+    --------
+    .. code-block:: python
+
+        sparse_indices = [[0, 0, 0],
+                            [0, 0, 1],
+                            [0, 1, 0],
+                            [1, 0, 0],
+                            [1, 2, 3]]
+
+        prev_shape = [2, 3, 4]
+
+        new_shape = [9, -1]
+
+        new_sparse_indices, new_shape = relay.sparse_reshape(sparse_indices,
+                            prev_shape,
+                            new_shape)
+        new_sparse_indices = [[0, 0],
+                              [0, 1],
+                              [1, 2],
+                              [4, 2],
+                              [8, 1]]
+        new_shape = [9, 4]
+    """
+    return TupleWrapper(_make.sparse_reshape(sparse_indices, prev_shape, new_shape), 2)

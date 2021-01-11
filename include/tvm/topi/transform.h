@@ -506,7 +506,7 @@ inline Array<Tensor> split(const Tensor& x, Array<PrimExpr> split_indices, int a
     begin_ids.push_back(idx);
   }
 
-  Array<Array<PrimExpr> > out_shapes;
+  Array<Array<PrimExpr>> out_shapes;
   for (size_t i = 0; i < begin_ids.size(); ++i) {
     PrimExpr out_axis_size;
     if (i == begin_ids.size() - 1) {
@@ -1387,6 +1387,88 @@ inline Array<Tensor> meshgrid(const Array<Tensor>& inputs, const std::string& in
   return result;
 }
 
+/*!
+ * \brief Compute new sparse indices and return them after the sparse_reshape operation
+ *
+ * \param sparse_indices Indices where values of the dense tensor exist
+ * \param prev_shape Old Shape of the sparse tensor corresponding to sparse_indices
+ * \param new_shape Desired Shape of the sparse tensor which will correspond to output
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the sparse_reshape operation
+ */
+inline Array<Tensor> SparseReshape(const Tensor& sparse_indices, const Tensor& prev_shape,
+                                   const Tensor& new_shape,
+                                   const std::string name = "T_sparse_reshape",
+                                   std::string tag = kInjective) {
+  Array<Tensor> result;
+  Array<PrimExpr> new_sparse_indices_shape{sparse_indices->shape[0], new_shape->shape[0]};
+
+  int new_shape_size = GetConstInt(new_shape->shape[0]);
+  int prev_shape_size = GetConstInt(prev_shape->shape[0]);
+  std::vector<PrimExpr> multipliers(prev_shape_size, 1);
+  std::vector<PrimExpr> dividers(new_shape_size, 1);
+
+  auto neg_shape_val = compute(Array<PrimExpr>{1}, [&](const Array<Var>& indices) {
+    tvm::PrimExpr total_ele = prev_shape[0];
+    for (int i = prev_shape_size - 2; i >= 0; --i) {
+      multipliers[i] = prev_shape[i + 1] * multipliers[i + 1];
+      total_ele *= prev_shape[i + 1];
+    }
+    PrimExpr division_total_ele = 1;
+    for (int i = 0; i < new_shape_size; ++i) {
+      division_total_ele *= if_then_else(new_shape[i] != -1, new_shape[i], 1);
+    }
+    for (int i = new_shape_size - 2; i >= 0; --i) {
+      dividers[i] = dividers[i + 1] * if_then_else(new_shape[i + 1] != -1, new_shape[i + 1],
+                                                   div(total_ele, division_total_ele));
+    }
+    return div(total_ele, division_total_ele);
+  });
+
+  result.push_back(compute(
+      new_sparse_indices_shape,
+      [&](const Array<Var>& indices) {
+        PrimExpr flattened_idx = 0;
+        if (sparse_indices->shape.size() == 1) {
+          flattened_idx += sparse_indices[indices[0]];
+        } else {
+          for (int k = 0; k < GetConstInt(sparse_indices->shape[1]); k++) {
+            flattened_idx += (sparse_indices[indices[0]][k] * multipliers[k]);
+          }
+        }
+        Array<PrimExpr> new_sparse_indices;
+        if (new_shape_size != 1) {
+          for (int i = 0; i < new_shape_size; i++) {
+            new_sparse_indices.push_back(floordiv(flattened_idx, dividers[i]));
+            flattened_idx = floormod(flattened_idx, dividers[i]);
+          }
+          PrimExpr ret = -1;
+
+          for (int i = 0; i < new_shape_size; i++) {
+            if (indices.size() == 1) {
+              return new_sparse_indices[0];
+            } else {
+              ret = if_then_else(indices[1] == i, new_sparse_indices[i], ret);
+            }
+          }
+          return ret;
+        } else {
+          return flattened_idx;
+        }
+      },
+      name, tag));
+  result.push_back(compute(
+      Array<PrimExpr>{new_shape_size},
+      [&](const Array<Var>& indices) {
+        PrimExpr ret = new_shape(indices);
+        ret = if_then_else(ret == -1, neg_shape_val[0], ret);
+        return ret;
+      },
+      name, tag));
+  return result;
+}  // namespace topi
 /*!
  * \brief Transform the layout according to \p src_layout and \p dst_layout
  * \param src the source input.
