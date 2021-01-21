@@ -254,6 +254,7 @@ def compare_tf_with_tvm(
             )
             # since the names from tensorflow and relay runs are not exactly same,
             # first len(tf_output) will be compared
+            print("Successfully ran everything")
             for i in range(len(tf_output)):
                 if not isinstance(tf_output[i], np.ndarray):
                     assert len(tvm_output[i].shape) == 0
@@ -1824,13 +1825,27 @@ def _test_sparse_reshape(indices_np, values_np, prev_shape_np, new_shape_np, dty
         new_shape = tf.placeholder(
             shape=new_shape_np.shape, dtype=new_shape_np.dtype, name="new_shape"
         )
-
-        tf.sparse.reshape(sp_input, new_shape, name="sparse_reshape")
+        result = tf.sparse.reshape(sp_input, new_shape, name="sparse_reshape")
         compare_tf_with_tvm(
             [new_shape_np],
             [new_shape.name],
             ["sparse_reshape:0", "sparse_reshape:1", "sparse_reshape/Identity:0"],
         )
+
+        # sp_input = tf.sparse.SparseTensor(
+        #     indices=indices_np, values=values_np, dense_shape=prev_shape_np
+        # )
+        # new_shape = tf.placeholder(
+        #     shape=new_shape_np.shape, dtype=new_shape_np.dtype, name="new_shape"
+        # )
+        # prev_shape = tf.placeholder(shape=prev_shape_np.shape, dtype = prev_shape_np.dtype, name="prev_shape")
+        # result = tf.sparse.reshape(sp_input, new_shape, name="sparse_reshape")
+        # result2 = tf.sparse.reshape(result, prev_shape, name="sparse_reshape")
+        # compare_tf_with_tvm(
+        #     [new_shape_np, prev_shape_np],
+        #     [new_shape.name, prev_shape.name],
+        #     ["sparse_reshape:0", "sparse_reshape:1", "sparse_reshape/Identity:0"],
+        # )
 
 
 def test_forward_sparse_reshape():
@@ -1846,6 +1861,7 @@ def test_forward_sparse_reshape():
     #     [0, 0, 0, 0]]
     #
     # ------------------------------------------------------------------
+    print("*"*20,"Testing","*"*20)
     sparse_indices_np = np.array(
         [[0, 0, 0], [0, 0, 1], [0, 1, 0], [1, 0, 0], [1, 2, 3]], dtype=np.int32
     )
@@ -1853,6 +1869,7 @@ def test_forward_sparse_reshape():
     prev_shape_np = np.array([2, 3, 6], dtype=np.int32)
     new_shape_np = np.array([9, 4], dtype=np.int32)
     _test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np, "int32")
+    print("*"*20,"Testing","*"*20)
 
     sparse_indices_np = np.array(
         [[0, 0, 0, 0], [0, 0, 1, 2], [0, 1, 0, 3], [1, 0, 0, 4], [1, 2, 3, 6]], dtype=np.int32
@@ -1861,18 +1878,21 @@ def test_forward_sparse_reshape():
     prev_shape_np = np.array([2, 3, 6, 7], dtype=np.int32)
     new_shape_np = np.array([9, -1, 7], dtype=np.int32)
     _test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np, "int32")
+    print("*"*20,"Testing","*"*20)
 
     sparse_indices_np = np.array([[0, 0], [0, 1], [3, 4], [4, 3], [7, 3]], dtype=np.int32)
     sparse_values_np = np.array([7, 5, 6, 3, 9], dtype=np.int32)
     prev_shape_np = np.array([9, 4], dtype=np.int32)
     new_shape_np = np.array([2, -1, 6], dtype=np.int32)
     _test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np, "int32")
+    print("*"*20,"Testing","*"*20)
 
     sparse_indices_np = np.array([[0, 0], [0, 1], [3, 4], [4, 3], [7, 3]], dtype=np.int32)
     sparse_values_np = np.array([7, 5, 6, 3, 9], dtype=np.int32)
     prev_shape_np = np.array([9, 4], dtype=np.int32)
     new_shape_np = np.array([-1], dtype=np.int32)
     _test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np, "int32")
+    print("*"*20,"Testing","*"*20)
 
     sparse_indices_np = np.array([[0], [5], [10], [20], [24]], dtype=np.int32)
     sparse_values_np = np.array([7, 5, 6, 3, 9], dtype=np.int32)
@@ -4752,4 +4772,5 @@ def test_forward_dynmaic_rnn_lstmblockcell():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    test_forward_sparse_reshape()
+    # pytest.main([__file__])

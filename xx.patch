@@ -1,0 +1,275 @@
+From 4ccc01ea2695dce64997189d568032c3e8afbad1 Mon Sep 17 00:00:00 2001
+From: Ubuntu <ubuntu@ip-172-31-28-115.us-east-2.compute.internal>
+Date: Mon, 11 Jan 2021 19:18:51 +0000
+Subject: [PATCH] Add SampleOp
+
+---
+ include/tvm/tir/expr_functor.h                |  1 +
+ python/tvm/relay/op/_transform.py             | 18 +++++++++
+ python/tvm/relay/op/strategy/generic.py       | 18 +++++++++
+ python/tvm/relay/op/transform.py              |  3 ++
+ python/tvm/topi/__init__.py                   |  1 +
+ python/tvm/topi/generic/search.py             |  3 ++
+ python/tvm/topi/sample_op.py                  | 31 ++++++++++++++
+ python/tvm/topi/transform.py                  |  3 ++
+ src/relay/op/tensor/transform.cc              | 26 ++++++++++++
+ .../relay/dyn/test_dynamic_op_level3.py       | 40 ++++++++++++++++++-
+ 10 files changed, 142 insertions(+), 2 deletions(-)
+ create mode 100644 python/tvm/topi/sample_op.py
+
+diff --git a/include/tvm/tir/expr_functor.h b/include/tvm/tir/expr_functor.h
+index b5f1d64a00c..01ff29df43b 100644
+--- a/include/tvm/tir/expr_functor.h
++++ b/include/tvm/tir/expr_functor.h
+@@ -152,6 +152,7 @@ class ExprFunctor<R(const PrimExpr& n, Args...)> {
+   virtual R VisitExpr_(const StringImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+   virtual R VisitExpr_(const AnyNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+   virtual R VisitExprDefault_(const Object* op, Args...) {
++    LOG(INFO) << "This is in " << op->GetTypeKey();
+     LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
+     return R();
+   }
+diff --git a/python/tvm/relay/op/_transform.py b/python/tvm/relay/op/_transform.py
+index 05ca6d2e4bb..ca93a91a049 100644
+--- a/python/tvm/relay/op/_transform.py
++++ b/python/tvm/relay/op/_transform.py
+@@ -94,6 +94,14 @@ def compute_scatter(attrs, inputs, output_type):
+ 
+ _reg.register_strategy("scatter", strategy.scatter_strategy)
+ 
++# sample_op 
++@_reg.register_compute("sample_op")
++def compute_sample_op(attrs, inputs, output_type):
++    """Compute definition of sample_op"""
++    return [topi.sample_op(inputs[0])]
++
++_reg.register_strategy("sample_op", strategy.sample_op_strategy)
++
+ # scatter_add
+ @_reg.register_compute("scatter_add")
+ def compute_scatter_add(attrs, inputs, output_type):
+@@ -434,6 +442,16 @@ def argwhere_shape_func(attrs, inputs, out_ndims):
+ _reg.register_shape_func("scatter", False, elemwise_shape_func)
+ _reg.register_shape_func("scatter_add", False, elemwise_shape_func)
+ 
++@script
++def _sample_op_shape_func(sample_input):
++    out = output_tensor((1,), "int64")
++    out[0] = int64(sample_input[0])
++    return out
++
++
++@_reg.register_shape_func("sample_op", True)
++def sample_op_func(attrs, inputs, _):
++    return [_sample_op_shape_func(inputs[0])]
+ 
+ @script
+ def _layout_transform_shape_func(
+diff --git a/python/tvm/relay/op/strategy/generic.py b/python/tvm/relay/op/strategy/generic.py
+index 363832ef8b2..0bc1312b5c7 100644
+--- a/python/tvm/relay/op/strategy/generic.py
++++ b/python/tvm/relay/op/strategy/generic.py
+@@ -1106,6 +1106,24 @@ def proposal_strategy(attrs, inputs, out_type, target):
+     )
+     return strategy
+ 
++# sample_op
++@override_native_generic_func("sample_op_strategy")
++def sample_op_strategy(attrs, outs, out_type, target): 
++    strategy = _op.OpStrategy()
++    strategy.add_implementation(
++        wrap_compute_sample_op(topi.sample_op),
++        wrap_topi_schedule(topi.generic.schedule_sample_op),
++        name="sample_op.generic",
++    )
++    return strategy
++
++def wrap_compute_sample_op(topi_compute):
++    """Wrap sample_op compute"""
++
++    def _compute_sample_op(attrs, inputs, _): 
++        return [topi_compute(inputs[0])]
++
++    return _compute_sample_op
+ 
+ # scatter
+ @override_native_generic_func("scatter_strategy")
+diff --git a/python/tvm/relay/op/transform.py b/python/tvm/relay/op/transform.py
+index 7e7f9b29959..21158d3b6ae 100644
+--- a/python/tvm/relay/op/transform.py
++++ b/python/tvm/relay/op/transform.py
+@@ -1320,3 +1320,6 @@ def adv_index(inputs):
+         Output tensor.
+     """
+     return _make.adv_index(Tuple(inputs))
++
++def sample_op(sample_input):
++    return _make.sample_op(sample_input)
+\ No newline at end of file
+diff --git a/python/tvm/topi/__init__.py b/python/tvm/topi/__init__.py
+index cb94b5b86c9..a87cec32d67 100644
+--- a/python/tvm/topi/__init__.py
++++ b/python/tvm/topi/__init__.py
+@@ -39,6 +39,7 @@
+ from .sort import *
+ from .scatter import *
+ from .scatter_add import *
++from .sample_op import *
+ from .argwhere import *
+ from . import generic
+ from . import nn
+diff --git a/python/tvm/topi/generic/search.py b/python/tvm/topi/generic/search.py
+index b3c8772046f..272c43d1e35 100644
+--- a/python/tvm/topi/generic/search.py
++++ b/python/tvm/topi/generic/search.py
+@@ -66,3 +66,6 @@ def schedule_scatter_add(outs):
+       The computation schedule for the op.
+     """
+     return _default_schedule(outs, False)
++
++def schedule_sample_op(outs):
++    return _default_schedule(outs, False)
+\ No newline at end of file
+diff --git a/python/tvm/topi/sample_op.py b/python/tvm/topi/sample_op.py
+new file mode 100644
+index 00000000000..d7f4b2b0db8
+--- /dev/null
++++ b/python/tvm/topi/sample_op.py
+@@ -0,0 +1,31 @@
++# Licensed to the Apache Software Foundation (ASF) under one
++# or more contributor license agreements.  See the NOTICE file
++# distributed with this work for additional information
++# regarding copyright ownership.  The ASF licenses this file
++# to you under the Apache License, Version 2.0 (the
++# "License"); you may not use this file except in compliance
++# with the License.  You may obtain a copy of the License at
++#
++#   http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing,
++# software distributed under the License is distributed on an
++# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
++# KIND, either express or implied.  See the License for the
++# specific language governing permissions and limitations
++# under the License.
++# pylint: disable=invalid-name, too-many-arguments, too-many-nested-blocks
++"""Scatter operator"""
++from ..tir import decl_buffer, ir_builder, Cast, AssertStmt, StringImm, Evaluate
++from ..te import extern, hybrid
++
++
++@hybrid.script
++def _sample_op(sample_input):
++    out = output_tensor((sample_input[0],), "int64")
++    for i in range(sample_input[0]):
++        out[i] = int64(1)
++    return out
++
++def sample_op(sample_input):
++    return _sample_op(sample_input)
+diff --git a/python/tvm/topi/transform.py b/python/tvm/topi/transform.py
+index 6ddbc73e466..6788ca3a8e3 100644
+--- a/python/tvm/topi/transform.py
++++ b/python/tvm/topi/transform.py
+@@ -931,3 +931,6 @@ def adv_index(data, indices):
+         Output tensor
+     """
+     return cpp.adv_index(data, indices)
++
++def sample_op(sample_input):
++    return cpp.sample_op(sample_input)
+\ No newline at end of file
+diff --git a/src/relay/op/tensor/transform.cc b/src/relay/op/tensor/transform.cc
+index ecfde359d11..e2939dc10c8 100644
+--- a/src/relay/op/tensor/transform.cc
++++ b/src/relay/op/tensor/transform.cc
+@@ -1673,6 +1673,32 @@ RELAY_REGISTER_OP("meshgrid")
+     .set_attr<FTVMCompute>("FTVMCompute", MeshgridCompute)
+     .set_attr<TOpPattern>("TOpPattern", kInjective);
+ 
++bool SampleOpRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
++                            const TypeReporter& reporter) {
++  // types: [ sample_input, result]
++  ICHECK_EQ(types.size(), 2);
++  reporter->Assign(types[types.size()-1], TensorType(Array<PrimExpr>{Any()}, tvm::DataType::Int(64)));
++  return true;
++}
++
++Expr MakeSampleOp(Expr sample_input) {
++  static const Op& op = Op::Get("sample_op");
++  return Call(op, {sample_input}, Attrs(), {});
++}
++
++TVM_REGISTER_GLOBAL("relay.op._make.sample_op")
++    .set_body_typed(MakeSampleOp);
++
++RELAY_REGISTER_OP("sample_op")
++    .describe(R"code(Return representation of a sparse tensor with empty rows filled with default 
++    value.)code" TVM_ADD_FILELINE)
++    .set_num_inputs(1)
++    .add_argument("sample_input", "Tensor",
++                  "A 1-D tensor[N] containing the sparse values for the sparse indices")
++    .add_type_rel("sample_op", SampleOpRel)
++    .set_support_level(3)
++    .set_attr<TOpPattern>("TOpPattern", kOpaque);
++    
+ // tile operator
+ TVM_REGISTER_NODE_TYPE(TileAttrs);
+ 
+diff --git a/tests/python/relay/dyn/test_dynamic_op_level3.py b/tests/python/relay/dyn/test_dynamic_op_level3.py
+index dd73b9a96a5..984920d387a 100644
+--- a/tests/python/relay/dyn/test_dynamic_op_level3.py
++++ b/tests/python/relay/dyn/test_dynamic_op_level3.py
+@@ -28,7 +28,7 @@
+ 
+ def verify_func(func, data, ref_res):
+     assert isinstance(data, list)
+-    for target, ctx in tvm.testing.enabled_targets():
++    for target, ctx in [("llvm", tvm.cpu())]:
+         for kind in ["vm", "debug"]:
+             mod = tvm.ir.IRModule.from_expr(func)
+             intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+@@ -201,6 +201,42 @@ def verify_sparse_to_dense(sparse_indices, sparse_values, default_value, output_
+     )  # floats
+     verify_sparse_to_dense(1, 3, None, [5], [0, 3, 0, 0, 0])  # default value not specified
+ 
++def test_sample_op():
++    def run_opt_pass(expr, opt_pass):
++        assert isinstance(opt_pass, tvm.transform.Pass)
++
++        mod = tvm.IRModule.from_expr(expr)
++        mod = opt_pass(mod)
++        entry = mod["main"]
++        return entry if isinstance(expr, relay.Function) else entry.body
++    def ref_sample_op(
++        sample_input: np.ndarray,
++    ) -> None:
++        return np.ones(sample_input.shape[0])
++
++    def verify_sample_op(
++        sample_input_np: np.ndarray,
++    ) -> None:
++        """
++        This function verifies the relay output of sample_op with its expected output.
++        """
++        sample_input = relay.var(
++            "sample_input",
++            relay.TensorType(sample_input_np.shape, str(sample_input_np.dtype)),
++        )
++        z = relay.sample_op(sample_input)
++        # zz = run_infer_type(z)
++
++        func = relay.Function([sample_input], z)
++        # func2 = run_infer_type(func)
++        # func3 = run_opt_pass(run_opt_pass(func2, transform.DynamicToStatic()), transform.InferType())
++
++        ref_res = ref_sample_op(sample_input_np)
++        verify_func(func, [sample_input], ref_res)
++
++    sample_input_np = np.array([0, 1, 2, 4], dtype=np.int32)
++    verify_sample_op(sample_input_np)
+ 
+ if __name__ == "__main__":
+-    pytest.main([__file__])
++    test_sample_op()
++    # pytest.main([__file__])

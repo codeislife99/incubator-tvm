@@ -978,15 +978,8 @@ def _sparse_tensor_dense_matmul():
 def _sparse_reshape():
     def _impl(inputs, attr, params, mod):
         assert len(inputs) == 3, "There should be 3 input tensors"
-
-        indices_tensor = _infer_value(inputs[0], params, mod).asnumpy()
-        values_tensor = params["SparseTensor/values"].asnumpy()
-        prev_shape_tensor = _infer_value(inputs[1], params, mod).asnumpy()
-        new_shape = inputs[2]
-        indices_data = _expr.const(indices_tensor, indices_tensor.dtype)
-        prev_shape_data = _expr.const(prev_shape_tensor, prev_shape_tensor.dtype)
-        ret = _op.sparse_reshape(indices_data, prev_shape_data, new_shape).astuple()
-        return ret, _expr.const(values_tensor, values_tensor.dtype)
+        new_indices, new_shape = get_relay_op("sparse_reshape")(inputs[0], inputs[1], inputs[2])
+        return _expr.TupleWrapper(_expr.Tuple([new_indices, new_shape]), 2)
 
     return _impl
 
