@@ -942,3 +942,59 @@ def sparse_reshape_shape_func(attrs, inputs, _):
     Shape func for sparse_reshape.
     """
     return [_sparse_reshape_1(*inputs), _sparse_reshape_2(*inputs)]
+
+
+@script
+def _sparse_fill_empty_rows_shape_func(sparse_indices, dense_shape):
+
+    new_sparse_indices_shape = output_tensor((2,), "int64")
+    new_sparse_values_shape = output_tensor((1,), "int64")
+    empty_row_indicator_shape = output_tensor((1,), "int64")
+    num_dense_rows = int64(dense_shape[0])
+
+    if int64(sparse_indices.shape[0]) == int64(0):
+        new_sparse_indices_shape[0] = num_dense_rows
+        new_sparse_indices_shape[1] = int64(sparse_indices.shape[1])
+        new_sparse_values_shape[0] = num_dense_rows
+        empty_row_indicator_shape[0] = num_dense_rows
+        return (new_sparse_indices_shape, new_sparse_values_shape, empty_row_indicator_shape)
+
+    else:
+        count = int64(sparse_indices.shape[0])
+        for i in range(1, int64(sparse_indices.shape[0])):
+            index = int64(sparse_indices[i, 0])
+            prev_index = int64(sparse_indices[i - 1, 0] + 1)
+
+            if index > prev_index:
+                count += index - prev_index
+
+        count += int64(sparse_indices[0, 0])
+        count += int64(num_dense_rows - 1 - sparse_indices[sparse_indices.shape[0] - 1, 0])
+        new_sparse_indices_shape[0] = int64(count)
+        new_sparse_indices_shape[1] = int64(sparse_indices.shape[1])
+        new_sparse_values_shape[0] = int64(count)
+        empty_row_indicator_shape[0] = num_dense_rows
+        return (new_sparse_indices_shape, new_sparse_values_shape, empty_row_indicator_shape)
+
+
+@_reg.register_shape_func("sparse_fill_empty_rows", True)
+def sparse_fill_empty_rows_func(attrs, inputs, _):
+    return _sparse_fill_empty_rows_shape_func(inputs[0], inputs[2])
+
+# sparse_fill_empty_rows
+@_reg.register_compute("sparse_fill_empty_rows")
+def compute_sparse_fill_empty_rows(attrs, inputs, output_type):
+    """Compute definition of sparse_fill_empty_rows"""
+
+    return topi.sparse_fill_empty_rows(
+        inputs[0],
+        inputs[1],
+        inputs[2],
+        inputs[3],
+        output_type.fields[0].shape,
+        output_type.fields[1].shape,
+        output_type.fields[2].shape,
+    )
+
+
+_reg.register_strategy("sparse_fill_empty_rows", strategy.sparse_fill_empty_rows_strategy)

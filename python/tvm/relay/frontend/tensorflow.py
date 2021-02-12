@@ -2312,12 +2312,14 @@ def _unique():
 
     return _impl
 
+
 def _sparse_reshape():
     def _impl(inputs, attr, params, mod):
         assert len(inputs) == 3, "There should be 3 input tensors"
 
         new_indices, new_shape = get_relay_op("sparse_reshape")(inputs[0], inputs[1], inputs[2])
         return _expr.TupleWrapper(_expr.Tuple([new_indices, new_shape]), 2)
+    return _impl
 
 def _sparse_segment_sqrtn():
     def _impl(inputs, attr, params, mod):
@@ -2343,6 +2345,30 @@ def _sparse_segment_sqrtn():
             end=end_indices,
             strides=strides,
             slice_mode="size",
+        )
+
+    return _impl
+
+
+def _sparse_fill_empty_rows():
+    def _impl(inputs, attr, params, mod):
+        assert len(inputs) == 4, "There should be 4 input tensors"
+        sparse_indices = inputs[0]
+        sparse_values = inputs[1]
+        sparse_indices_num_cols = _infer_shape(sparse_indices, mod)[1]
+        first_column = _op.split(sparse_indices, sparse_indices_num_cols, axis=1)[0]
+        sorted_indices = _op.argsort(_op.squeeze(first_column, axis=1))
+        sorted_sparse_indices = _op.take(sparse_indices, sorted_indices, axis=0)
+        sorted_sparse_values = _op.take(sparse_values, sorted_indices, axis=0)
+        new_sparse_indices, new_sparse_values, empty_row_indicator = _op.sparse_fill_empty_rows(
+            sorted_sparse_indices, sorted_sparse_values, inputs[2], inputs[3]
+        )
+
+        return _expr.TupleWrapper(
+            _expr.Tuple(
+                [new_sparse_indices, new_sparse_values, _op.cast(empty_row_indicator, dtype="bool")]
+            ),
+            3,
         )
 
     return _impl
@@ -2499,6 +2525,7 @@ _convert_map = {
     "Softsign": _softsign(),
     "SpaceToBatchND": _space_to_batch_nd(),
     "SpaceToDepth": _space_to_depth(),
+    "SparseFillEmptyRows": _sparse_fill_empty_rows(),
     "SparseSegmentSqrtN": _sparse_segment_sqrtn(),
     "SparseReshape": _sparse_reshape(),
     "SparseToDense": _sparse_to_dense(),

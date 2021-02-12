@@ -1045,3 +1045,7 @@ def sparse_segment_sqrtn(data, indices, segment_ids, num_segments=None):
     if not num_segments:
         num_segments = -1
     return cpp.sparse_segment_sqrtn(data, indices, segment_ids, num_segments)
+
+
+def sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value):
+    return cpp.sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value)

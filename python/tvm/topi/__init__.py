@@ -39,6 +39,7 @@ from .broadcast import *
 from .sort import *
 from .scatter import *
 from .scatter_add import *
+from .sparse_fill_empty_rows import *
 from .argwhere import *
 from .cumsum import *
 from .einsum import *
