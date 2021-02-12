@@ -1420,3 +1420,89 @@ def unique(data):
         n     =  [5]
     """
     return TupleWrapper(_make.unique(data), 4)
+
+
+def sparse_reshape(sparse_indices, prev_shape, new_shape):
+    """
+    Reshape a Sparse Tensor
+    Parameters
+    ----------
+    sparse_indices : relay.Expr
+        A 2-D tensor[N, n_dim] of integers containing location of sparse values, where N is the
+        number of sparse values and n_dim is the number of dimensions of the dense_shape
+    prev_shape : relay.Expr
+        A 1-D tensor containing the previous shape of the dense tensor
+    new_shape : relay.Expr
+        A 1-D tensor containing the new shape of the dense tensor
+    Returns
+    -------
+    result: relay.Expr
+        Output tensor.
+    Examples
+    --------
+    .. code-block:: python
+        sparse_indices = [[0, 0, 0],
+                            [0, 0, 1],
+                            [0, 1, 0],
+                            [1, 0, 0],
+                            [1, 2, 3]]
+        prev_shape = [2, 3, 4]
+        new_shape = [9, -1]
+        new_sparse_indices, new_shape = relay.sparse_reshape(sparse_indices,
+                            prev_shape,
+                            new_shape)
+        new_sparse_indices = [[0, 0],
+                              [0, 1],
+                              [1, 2],
+                              [4, 2],
+                              [8, 1]]
+        new_shape = [9, 4]
+    """
+    return TupleWrapper(_make.sparse_reshape(sparse_indices, prev_shape, new_shape), 2)
+
+
+def sparse_segment_sqrtn(data, indices, segment_ids, num_segments=None):
+    """
+    Compute the sparse segment sum on the indices over the segment_ids
+
+    Parameters
+    ----------
+    data : relay.Expr
+        A Tensor with data that will be assembled in the output.
+    indices : relay.Expr
+       A 1-D Tensor with indices into data. Has same rank as segment_ids.
+    segment_ids : relay.Expr
+        A 1-D Tensor with indices into the output Tensor. Values should be sorted and can be
+        repeated.
+    num_segments : Optional[int]
+        An optional int32 scalar. Indicates the size of the output Tensor.
+
+    Returns
+    -------
+    result: relay.Expr
+        Output tensor containing the sparse segment sum
+
+    Examples
+    --------
+    .. code-block:: python
+
+        data = [[1,2,3,4], [-1,-2,-3,-4], [5,6,7,8]]
+
+        indices = [0, 1]
+
+        segment_ids = [0, 2]
+
+        num_segments = 4
+
+        result = relay.sparse_segment_sqrtn(data,
+                                        indices,
+                                        segment_ids,
+                                        num_segments)
+        result    =  [[ 1  2  3  4]
+                      [ 0  0  0  0]
+                      [-1 -2 -3 -4]
+                      [ 0  0  0  0]]
+    """
+    if not num_segments:
+        num_segments = -1
+    return _make.sparse_segment_sqrtn(data, indices, segment_ids, num_segments)

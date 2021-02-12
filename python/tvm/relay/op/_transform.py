@@ -64,6 +64,8 @@ _reg.register_injective_schedule("unravel_index")
 _reg.register_injective_schedule("sparse_to_dense")
 _reg.register_injective_schedule("matrix_set_diag")
 _reg.register_injective_schedule("adv_index")
+_reg.register_injective_schedule("sparse_segment_sqrtn")
+_reg.register_injective_schedule("sparse_reshape")
 
 # concatenate
 _reg.register_schedule("concatenate", strategy.schedule_concatenate)
@@ -917,3 +919,26 @@ def unique_shape_func(attrs, inputs, _):
         _unique_shape_1(inputs[0]),
         _unique_shape_2(inputs[0]),
     ]
+
+
+@script
+def _sparse_reshape_1(sparse_indices_shape, prev_shape_shape, new_shape_shape):
+    indices_shape = output_tensor((2,), "int64")
+    indices_shape[0] = int64(sparse_indices_shape[0])
+    indices_shape[1] = int64(new_shape_shape[0])
+    return indices_shape
+
+
+@script
+def _sparse_reshape_2(sparse_indices_shape, prev_shape_shape, new_shape_shape):
+    shape_tensor = output_tensor((1,), "int64")
+    shape_tensor[0] = int64(new_shape_shape[0])
+    return shape_tensor
+
+
+@_reg.register_shape_func("sparse_reshape", False)
+def sparse_reshape_shape_func(attrs, inputs, _):
+    """
+    Shape func for sparse_reshape.
+    """
+    return [_sparse_reshape_1(*inputs), _sparse_reshape_2(*inputs)]
