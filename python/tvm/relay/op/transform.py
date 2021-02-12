@@ -898,6 +898,20 @@ def strided_slice(data, begin, end, strides=None, slice_mode="end"):
         end = list(end.data.asnumpy())
     if isinstance(strides, Constant):
         strides = list(strides.data.asnumpy())
+    try:
+        if "sparse_fill_empty_rows" in str(data.tuple_value[0].tuple_value.op):
+            if isinstance(begin, (tuple, list)):
+                begin = const(list(begin))
+            if isinstance(end, (tuple, list)):
+                end = const(list(end))
+            if isinstance(strides, (tuple, list)):
+                strides = const(list(strides))
+            normalized_begin = _make.where(
+                begin < cast_like(const(0), begin), begin + cast_like(shape_of(data), begin), begin
+            )
+            return _dyn_make.strided_slice(data, normalized_begin, end, strides, slice_mode)
+    except Exception as e:
+        pass
     if isinstance(begin, Expr) or isinstance(end, Expr) or isinstance(strides, Expr):
         if isinstance(begin, (tuple, list)):
             begin = const(list(begin))

@@ -1684,6 +1684,7 @@ def _stridedSlice():
 
         def _transform_mask(stride_dim, ellipsis_mask):
             """Handle mask inputs to create new begin, end, stride and output shape"""
+            mode = "end"
             m_begin = [0] * data_dim
             m_end = [0] * data_dim
             m_stride = [0] * data_dim
@@ -1730,6 +1731,9 @@ def _stridedSlice():
                             if stride[index] < 0
                             else data_shape[final_index]
                         )
+                        if not isinstance(m_end[final_index], int):
+                            mode = "size"
+                            m_end[final_index] = -1
                     elif end[index]:
                         m_end[final_index] = end[index]
                     m_stride[final_index] = stride[index]
@@ -1747,16 +1751,15 @@ def _stridedSlice():
                         fshape_indices.append(final_index)
 
                     final_index += 1
-            return m_begin, m_end, m_stride, fshape_indices
+            return m_begin, m_end, m_stride, fshape_indices, mode
 
         fshape_indices = None
         if begin_mask or end_mask or ellipsis_mask or new_axis_mask or shrink_axis_mask:
-            begin, end, stride, fshape_indices = _transform_mask(stride_dim, ellipsis_mask)
-        out = _op.strided_slice(inputs[0], begin=begin, end=end, strides=stride)
+            begin, end, stride, fshape_indices, mode = _transform_mask(stride_dim, ellipsis_mask)
+        out = _op.strided_slice(inputs[0], begin=begin, end=end, strides=stride, slice_mode=mode)
         out_shape = _infer_shape(out, mod=mod)
         if not fshape_indices:
             fshape_indices = range(len(out_shape))
-
         # Create final output shape.
         final_output = []
         for gather_index in fshape_indices:
@@ -1779,8 +1782,10 @@ def _stridedSlice():
                     ret = _op.squeeze(out)
                 else:
                     # We need reshape to handle dynamic shape.
+                    final_shape = [i if isinstance(i, int) else -1 for i in final_output]
                     ret = _op.reshape(out, newshape=tuple(final_shape))
         else:
+            final_output = [i if isinstance(i, int) else -1 for i in final_output]
             ret = _op.reshape(out, newshape=tuple(final_output))
         return ret
 
@@ -2323,7 +2328,6 @@ def _sparse_reshape():
 
 def _sparse_segment_sqrtn():
     def _impl(inputs, attr, params, mod):
-
         assert len(inputs) == 3, "There should be 3 input tensors"
         result = _op.sparse_segment_sqrtn(inputs[0], inputs[1], inputs[2])
         num_segments = _op.add(get_relay_op("max")(inputs[2]), _expr.const([1]))
@@ -2357,7 +2361,7 @@ def _sparse_fill_empty_rows():
         sparse_values = inputs[1]
         sparse_indices_num_cols = _infer_shape(sparse_indices, mod)[1]
         first_column = _op.split(sparse_indices, sparse_indices_num_cols, axis=1)[0]
-        sorted_indices = _op.argsort(_op.squeeze(first_column, axis=1))
+        sorted_indices = _op.argsort(_op.squeeze(first_column, axis=[1]))
         sorted_sparse_indices = _op.take(sparse_indices, sorted_indices, axis=0)
         sorted_sparse_values = _op.take(sparse_values, sorted_indices, axis=0)
         new_sparse_indices, new_sparse_values, empty_row_indicator = _op.sparse_fill_empty_rows(
