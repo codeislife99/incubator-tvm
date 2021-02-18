@@ -1042,10 +1042,20 @@ def sparse_segment_sqrtn(data, indices, segment_ids, num_segments=None):
                       [-1 -2 -3 -4]
                       [ 0  0  0  0]]
     """
-    if not num_segments:
-        num_segments = -1
-    return cpp.sparse_segment_sqrtn(data, indices, segment_ids, num_segments)
+    # if not num_segments:
+    #     num_segments = -1
+    # return cpp.sparse_segment_sqrtn(data, indices, segment_ids, num_segments)
+    return cpp.segment_sqrt_n(data, indices, segment_ids)
 
+def segment_sqrt_n(data, indices, segment_ids, new_shape):
+    return te.extern(
+        [new_shape],
+        [data, indices, segment_ids],
+        lambda ins, outs: tvm.tir.call_packed("tvm.contrib.algorithm.segment_sqrt_n", ins[0], ins[1], ins[2], outs[0]),
+        dtype=[data.dtype],
+        name="segment_sqrt_n_cpu",
+        tag="segment_sqrt_n_cpu",
+    )    
 
 def sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value):
     return cpp.sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value)

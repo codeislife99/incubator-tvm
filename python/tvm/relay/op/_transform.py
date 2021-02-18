@@ -998,3 +998,30 @@ def compute_sparse_fill_empty_rows(attrs, inputs, output_type):
 
 
 _reg.register_strategy("sparse_fill_empty_rows", strategy.sparse_fill_empty_rows_strategy)
+
+@script
+def _segment_sqrt_n_shape(data, segment_ids):
+
+    new_shape = output_tensor((2,), "int64")
+    new_shape[0] = int64(segment_ids[segment_ids.shape[0]-1]+1)
+    new_shape[1] = int64(data.shape[1])
+    return new_shape
+
+
+@_reg.register_shape_func("segment_sqrt_n", True)
+def sparse_fill_empty_rows_func(attrs, inputs, _):
+    return [_segment_sqrt_n_shape(inputs[0], inputs[2])]
+
+# @_reg.register_compute("segment_sqrt_n")
+# def compute_segment_sqrt_n_shape(attrs, inputs, output_type):
+#     """Compute definition of sparse_fill_empty_rows"""
+
+#     return topi.segment_sqrt_n(
+#         inputs[0],
+#         inputs[1],
+#         inputs[2],
+#         output_type.shape
+#     )
+
+_reg.register_strategy("segment_sqrt_n", strategy.segment_sqrt_n_strategy)
+register_pattern("segment_sqrt_n", OpPattern.OPAQUE)

@@ -2313,7 +2313,7 @@ def _unique():
         x = inputs[0]
         [output, indices, _, num_uniq] = _op.unique(x)
         output_sliced = _op.strided_slice(output, begin=[0], end=num_uniq, slice_mode="size")
-        return [output_sliced, indices]
+        return _expr.TupleWrapper(_expr.Tuple([output_sliced, indices]), 2)
 
     return _impl
 
@@ -2324,32 +2324,17 @@ def _sparse_reshape():
 
         new_indices, new_shape = get_relay_op("sparse_reshape")(inputs[0], inputs[1], inputs[2])
         return _expr.TupleWrapper(_expr.Tuple([new_indices, new_shape]), 2)
+
     return _impl
+
 
 def _sparse_segment_sqrtn():
     def _impl(inputs, attr, params, mod):
         assert len(inputs) == 3, "There should be 3 input tensors"
-        result = _op.sparse_segment_sqrtn(inputs[0], inputs[1], inputs[2])
-        num_segments = _op.add(get_relay_op("max")(inputs[2]), _expr.const([1]))
-        num_output_shape_dims = len(attr["_output_shapes"][0])
-        begin_indices = _op.repeat(_expr.const([0]), num_output_shape_dims, 0)
-        end_indices = num_segments
-        if num_output_shape_dims > 1:
-            end_indices = _op.concatenate(
-                [
-                    end_indices,
-                    _op.repeat(_expr.const([-1]), num_output_shape_dims - 1, 0),
-                ],
-                0,
-            )
-        strides = _op.repeat(_expr.const([1]), num_output_shape_dims, 0)
-        return _op.strided_slice(
-            result,
-            begin=begin_indices,
-            end=end_indices,
-            strides=strides,
-            slice_mode="size",
-        )
+        data = inputs[0]
+        indices = _op.cast(inputs[1], dtype="int32")
+        segment_ids = _op.cast(inputs[2], dtype="int32")
+        return _op.segment_sqrt_n(data, indices, segment_ids)
 
     return _impl
 

@@ -26,6 +26,36 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/runtime/data_type.h>
+#include <math.h>
+#include <iostream>
+
+void compute_segment_sqrt_n(DLTensor* data, DLTensor* indices, DLTensor* segment_ids, DLTensor* outputs) {
+  std::vector<float> counter;
+  auto data_ptr = static_cast<float*>(data->data);
+  auto indices_ptr = static_cast<int*>(indices->data);
+  auto segment_ids_ptr = static_cast<int*>(segment_ids->data);
+  auto outputs_ptr = static_cast<float*>(outputs->data);
+  int M = outputs->shape[0];
+  int N = outputs->shape[1];
+  int K = indices->shape[0];
+  counter.resize(M, 0);
+  for (int i = 0; i < M*N; i++){
+    outputs_ptr[i] = 0;
+  }
+  for (int k = 0; k < K; k++) {
+    int segment_id = segment_ids_ptr[k];
+    int index = indices_ptr[k];
+    counter[segment_id] += 1.0;
+    for (int n = 0; n < N; n++) {
+      outputs_ptr[segment_id*N + n] += data_ptr[index*N + n];
+    }
+  }
+  for (int i = 0; i < M; i++) {
+    for (int j = 0; j < N; j++) {
+      outputs_ptr[i*N + j] = outputs_ptr[i*N + j] / sqrt(counter[i]);
+    }
+  }
+}
 
 namespace tvm {
 namespace relay {
@@ -141,6 +171,53 @@ TVM_REGISTER_GLOBAL("tvm.contrib.algorithm.unique").set_body([](TVMArgs args, TV
   } else {
     LOG(FATAL) << "Unsupported input dtype: " << data_dtype;
   }
+});
+
+bool SegmentSqrtNRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+               const TypeReporter& reporter) {
+  // types: [data, result]
+  auto data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    ICHECK(types[0].as<IncompleteTypeNode>())
+        << "SegmentSqrtNRel: expect input type to be TensorType but get " << types[0];
+    return false;
+  }
+  Array<IndexExpr> oshape;
+  oshape.push_back(Any());
+  oshape.push_back(data->shape[1]);
+  reporter->Assign(types[3], TensorType(oshape, data->dtype));
+  return true;
+}
+
+Expr MakeSegmentSqrtN(Expr data, Expr indices, Expr segment_ids) {
+  static const Op& op = Op::Get("segment_sqrt_n");
+  return Call(op, {data, indices, segment_ids}, Attrs(), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.segment_sqrt_n").set_body_typed(MakeSegmentSqrtN);
+
+RELAY_REGISTER_OP("segment_sqrt_n")
+    .describe(
+        R"code(NULL
+    )code" TVM_ADD_FILELINE)
+    .set_num_inputs(3)
+    .add_argument("data", "Tensor", "The input tensor")
+    .add_argument("indices", "Tensor", "The input tensor")
+    .add_argument("segment_ids", "Tensor", "The input tensor")
+    .add_type_rel("segment_sqrt_n", SegmentSqrtNRel)
+    .set_support_level(6);
+
+// The unique operator
+TVM_REGISTER_GLOBAL("tvm.contrib.algorithm.segment_sqrt_n").set_body([](TVMArgs args, TVMRetValue* ret) {
+  DLTensor* data = args[0];
+  DLTensor* indices = args[1];
+  DLTensor* segment_ids = args[2];
+  DLTensor* outputs = args[3];
+  LOG(INFO) << tvm::runtime::DLDataType2String(data->dtype);
+  LOG(INFO) << tvm::runtime::DLDataType2String(indices->dtype);
+  LOG(INFO) << tvm::runtime::DLDataType2String(segment_ids->dtype);
+  LOG(INFO) << tvm::runtime::DLDataType2String(outputs->dtype);
+  compute_segment_sqrt_n(data, indices, segment_ids, outputs);
 });
 
 }  // namespace relay

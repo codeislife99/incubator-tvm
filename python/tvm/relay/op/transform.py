@@ -1521,6 +1521,8 @@ def sparse_segment_sqrtn(data, indices, segment_ids, num_segments=None):
         num_segments = -1
     return _make.sparse_segment_sqrtn(data, indices, segment_ids, num_segments)
 
+def segment_sqrt_n(data, indices, segment_ids):
+    return _make.segment_sqrt_n(data, indices, segment_ids)
 
 def sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value):
     return TupleWrapper(
