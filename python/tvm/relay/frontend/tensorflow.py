@@ -2334,7 +2334,7 @@ def _sparse_segment_sqrtn():
         data = inputs[0]
         indices = _op.cast(inputs[1], dtype="int32")
         segment_ids = _op.cast(inputs[2], dtype="int32")
-        return _op.segment_sqrt_n(data, indices, segment_ids)
+        return _op.sparse_segment_sqrt_n(data, indices, segment_ids)
 
     return _impl
 

@@ -190,13 +190,13 @@ bool SegmentSqrtNRel(const Array<Type>& types, int num_inputs, const Attrs& attr
 }
 
 Expr MakeSegmentSqrtN(Expr data, Expr indices, Expr segment_ids) {
-  static const Op& op = Op::Get("segment_sqrt_n");
+  static const Op& op = Op::Get("sparse_segment_sqrt_n");
   return Call(op, {data, indices, segment_ids}, Attrs(), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op._make.segment_sqrt_n").set_body_typed(MakeSegmentSqrtN);
+TVM_REGISTER_GLOBAL("relay.op._make.sparse_segment_sqrt_n").set_body_typed(MakeSegmentSqrtN);
 
-RELAY_REGISTER_OP("segment_sqrt_n")
+RELAY_REGISTER_OP("sparse_segment_sqrt_n")
     .describe(
         R"code(NULL
     )code" TVM_ADD_FILELINE)
@@ -204,19 +204,15 @@ RELAY_REGISTER_OP("segment_sqrt_n")
     .add_argument("data", "Tensor", "The input tensor")
     .add_argument("indices", "Tensor", "The input tensor")
     .add_argument("segment_ids", "Tensor", "The input tensor")
-    .add_type_rel("segment_sqrt_n", SegmentSqrtNRel)
+    .add_type_rel("sparse_segment_sqrt_n", SegmentSqrtNRel)
     .set_support_level(6);
 
 // The unique operator
-TVM_REGISTER_GLOBAL("tvm.contrib.algorithm.segment_sqrt_n").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("tvm.contrib.algorithm.sparse_segment_sqrt_n").set_body([](TVMArgs args, TVMRetValue* ret) {
   DLTensor* data = args[0];
   DLTensor* indices = args[1];
   DLTensor* segment_ids = args[2];
   DLTensor* outputs = args[3];
-  LOG(INFO) << tvm::runtime::DLDataType2String(data->dtype);
-  LOG(INFO) << tvm::runtime::DLDataType2String(indices->dtype);
-  LOG(INFO) << tvm::runtime::DLDataType2String(segment_ids->dtype);
-  LOG(INFO) << tvm::runtime::DLDataType2String(outputs->dtype);
   compute_segment_sqrt_n(data, indices, segment_ids, outputs);
 });
 

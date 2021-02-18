@@ -1454,21 +1454,21 @@ def wrap_compute_sparse_fill_empty_rows(topi_compute):
 
 
 # sparse_fill_empty_rows
-@override_native_generic_func("segment_sqrt_n_strategy")
-def segment_sqrt_n_strategy(attrs, outs, out_type, target):
+@override_native_generic_func("sparse_segment_sqrt_n_strategy")
+def sparse_segment_sqrt_n_strategy(attrs, outs, out_type, target):
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_segment_sqrt_n(topi.segment_sqrt_n),
+        wrap_compute_sparse_segment_sqrt_n(topi.sparse_segment_sqrt_n),
         wrap_topi_schedule(topi.generic.schedule_sparse_fill_empty_rows),
-        name="segment_sqrt_n.generic",
+        name="sparse_segment_sqrt_n.generic",
     )
     return strategy
 
 
-def wrap_compute_segment_sqrt_n(topi_compute):
+def wrap_compute_sparse_segment_sqrt_n(topi_compute):
     """Wrap sparse_fill_empty_rows compute"""
 
-    def _compute_segment_sqrt_n(attrs, inputs, output_type):
+    def _compute_sparse_segment_sqrt_n(attrs, inputs, output_type):
         return [
             topi_compute(
                 inputs[0],
@@ -1478,4 +1478,4 @@ def wrap_compute_segment_sqrt_n(topi_compute):
             )
         ]
 
-    return _compute_segment_sqrt_n
+    return _compute_sparse_segment_sqrt_n

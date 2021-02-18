@@ -1872,57 +1872,6 @@ inline Array<Tensor> SparseReshape(const Tensor& sparse_indices, const Tensor& p
   return result;
 }  // namespace topi
 
-/*!
- * \brief Compute the sparse segment sum on the indices over the segment_ids
- *
- * \param data A Tensor with data that will be assembled in the output.
- * \param selected_indices A 1-D Tensor with indices into data. Has same rank as segment_ids.
- * \param segment_ids A 1-D Tensor with indices into the output Tensor. Values should be sorted and
- * can be repeated.
- * \param num_segments An optional int32 scalar. Indicates the size of the output Tensor.
- * \param name The name of the operation
- * \param tag The tag to mark the operation
- *
- * \return A Tensor whose op member is the sparse_segment_sqrtn operation
- */
-inline Array<Tensor> SparseSegmentSqrtN(const Tensor& data, const Tensor& selected_indices,
-                                        const Tensor& segment_ids, int num_segments,
-                                        const std::string name = "T_sparse_segment_sqrtn",
-                                        std::string tag = kInjective) {
-  Array<Tensor> result;
-  Array<PrimExpr> new_data_shape;
-  if (num_segments != -1) {
-    new_data_shape.push_back(num_segments);
-  } else {
-    new_data_shape.push_back(selected_indices->shape[0]);
-  }
-  for (int i = 1; i < static_cast<int>(data->shape.size()); ++i) {
-    new_data_shape.push_back(data->shape[i]);
-  }
-  auto selected_data = tvm::topi::take(data, selected_indices, 0, "clip");
-
-  result.push_back(compute(
-      new_data_shape,
-      [&](const Array<Var>& indices) {
-        PrimExpr ret = static_cast<float>(0.0);
-        PrimExpr length_segment = static_cast<float>(0.0);
-        for (int i = 0; i < GetConstInt(segment_ids->shape[0]); ++i) {
-          Array<PrimExpr> secondary_indices;
-          secondary_indices.push_back(i);
-          secondary_indices.insert(secondary_indices.end(), indices.begin() + 1, indices.end());
-          PrimExpr condition = indices[0] == segment_ids[i];
-          length_segment += if_then_else(condition, 1, 0);
-          ret += if_then_else(condition, selected_data(secondary_indices), 0);
-        }
-        // length_segment = if_then_else(length_segment == 0, 1, length_segment);
-        PrimExpr sqrt_length_segment =
-            tvm::sqrt(if_then_else(length_segment == 0, 1, length_segment));
-        return div(ret, sqrt_length_segment);
-      },
-      name, tag));
-  return result;
-}  // namespace topi
-
 }  // namespace topi
 }  // namespace tvm
 #endif  // TVM_TOPI_TRANSFORM_H_

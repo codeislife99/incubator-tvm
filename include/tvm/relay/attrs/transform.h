@@ -452,14 +452,6 @@ struct CumsumAttrs : public tvm::AttrsNode<CumsumAttrs> {
   }
 };
 
-/*! \brief Attributes used in sparse_segment_sqrtn operator */
-struct SparseSegmentSqrtNAttrs : public tvm::AttrsNode<SparseSegmentSqrtNAttrs> {
-  int num_segments;
-  TVM_DECLARE_ATTRS(SparseSegmentSqrtNAttrs, "relay.attrs.SparseSegmentSqrtNAttrs") {
-    TVM_ATTR_FIELD(num_segments).describe("Number of Segments in the output tensor");
-  }
-};  // struct SparseSegmentSqrtNAttrs
-
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_TRANSFORM_H_
